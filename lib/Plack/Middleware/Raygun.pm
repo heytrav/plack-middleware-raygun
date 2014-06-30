@@ -34,31 +34,12 @@ use WebService::Raygun::Messenger;
 
 #use Smart::Comments;
 
-#our $StackTraceClass = "Devel::StackTrace";
-
-# Optional since it needs PadWalker
-#if (
-#try {
-#require Devel::StackTrace::WithLexicals;
-#Devel::StackTrace::WithLexicals->VERSION(0.08);
-#1;
-#})
-#{
-#$StackTraceClass = "Devel::StackTrace::WithLexicals";
-#}
-
 sub call {
     my ($self, $env) = @_;
 
     my $trace;
     local $SIG{__DIE__} = sub {
         $trace = 1;
-        ### died
-        #$StackTraceClass->new(
-        #indent         => 1,
-        #message        => munge_error($_[0], [caller]),
-        #ignore_package => __PACKAGE__,
-        #);
         die @_;
     };
 
@@ -106,16 +87,6 @@ and the StackTrace middleware couldn't catch its stack trace, possibly because y
 EOF
 }
 
-#sub munge_error {
-#my ($err, $caller) = @_;
-#return $err if ref $err;
-
-## Ugly hack to remove " at ... line ..." automatically appended by perl
-## If there's a proper way to do this, please let me know.
-#$err =~ s/ at \Q$caller->[1]\E line $caller->[2]\.\n$//;
-
-#return $err;
-#}
 
 sub utf8_safe {
     my $str = shift;
