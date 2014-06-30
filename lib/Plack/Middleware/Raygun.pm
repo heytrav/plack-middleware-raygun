@@ -41,12 +41,13 @@ use WebService::Raygun::Messenger;
 
 =head2 call
 
-Override the base L<call|Plack::Middleware/"call"> method.
+Implementation of the L<call|Plack::Middleware/"call"> method.
 
 =cut
 
 sub call {
     my ($self, $env) = @_;
+    ### env : $env
 
     my $trace;
     local $SIG{__DIE__} = sub {
@@ -123,14 +124,21 @@ Call the raygun.io using L<WebService::Raygun|WebService::Raygun>.
 # Need to find out what attributes are available in the $env hash variable.
 sub _call_raygun {
     my ($env, $error) = @_;
-    my $messenger = WebService::Raygun::Messenger->new(
+    my $scheme      = $env->{'psgi.url_scheme'};
+    my $http_host   = $env->{HTTP_HOST};
+    my $request_uri = $env->{REQUEST_URI};
+    my $url         = $scheme . '://' . $http_host . $request_uri;
+    ### about to init raygun
+    my $messenger   = WebService::Raygun::Messenger->new(
         message => {
             response_status_code => 500,
             error                => $error,
             request              => {
                 http_method  => $env->{REQUEST_METHOD},
                 query_string => $env->{QUERY_STRING},
-
+                ip_address   => $env->{REMOTE_ADDR},
+                host_name    => $http_host,
+                url          => $url,
             }
         },
     );
