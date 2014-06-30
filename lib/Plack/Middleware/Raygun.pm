@@ -25,8 +25,6 @@ Plack::Middleware::Raygun - wrap around psgi application to send stuff to raygun
 
 =cut
 
-#use Devel::StackTrace;
-#use Devel::StackTrace::AsHTML;
 use Try::Tiny;
 use Plack::Util::Accessor qw( force no_print_errors );
 
@@ -87,7 +85,6 @@ and the StackTrace middleware couldn't catch its stack trace, possibly because y
 EOF
 }
 
-
 sub utf8_safe {
     my $str = shift;
 
@@ -106,12 +103,11 @@ sub utf8_safe {
 
 =head2 _call_raygun
 
-Call the raygun.io using L<WebService::Raygun|WebService::Raygun>.  ATM I'm
-not sure what attributes are available in the C<$env> variable so I'll need to
-do a little more research.
+Call the raygun.io using L<WebService::Raygun|WebService::Raygun>.
 
 =cut
 
+# Need to find out what attributes are available in the $env hash variable.
 sub _call_raygun {
     my ($env, $error) = @_;
     my $messenger = WebService::Raygun::Messenger->new(
