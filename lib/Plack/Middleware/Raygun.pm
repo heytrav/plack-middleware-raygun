@@ -4,6 +4,7 @@ use warnings;
 package Plack::Middleware::Raygun;
 
 use parent qw(Plack::Middleware);
+
 =head1 NAME
 
 Plack::Middleware::Raygun - wrap around psgi application to send stuff to raygun.io.
@@ -24,25 +25,26 @@ Plack::Middleware::Raygun - wrap around psgi application to send stuff to raygun
 
 =cut
 
-
 #use Devel::StackTrace;
 #use Devel::StackTrace::AsHTML;
 use Try::Tiny;
 use Plack::Util::Accessor qw( force no_print_errors );
 
-use WebService::Raygun;
+use WebService::Raygun::Messenger;
+
+#use Smart::Comments;
 
 #our $StackTraceClass = "Devel::StackTrace";
 
 # Optional since it needs PadWalker
 #if (
-    #try {
-        #require Devel::StackTrace::WithLexicals;
-        #Devel::StackTrace::WithLexicals->VERSION(0.08);
-        #1;
-    #})
+#try {
+#require Devel::StackTrace::WithLexicals;
+#Devel::StackTrace::WithLexicals->VERSION(0.08);
+#1;
+#})
 #{
-    #$StackTraceClass = "Devel::StackTrace::WithLexicals";
+#$StackTraceClass = "Devel::StackTrace::WithLexicals";
 #}
 
 sub call {
@@ -51,10 +53,11 @@ sub call {
     my $trace;
     local $SIG{__DIE__} = sub {
         $trace = 1;
+        ### died
         #$StackTraceClass->new(
-            #indent         => 1,
-            #message        => munge_error($_[0], [caller]),
-            #ignore_package => __PACKAGE__,
+        #indent         => 1,
+        #message        => munge_error($_[0], [caller]),
+        #ignore_package => __PACKAGE__,
         #);
         die @_;
     };
@@ -65,6 +68,7 @@ sub call {
     }
     catch {
         $caught = $_;
+        ### caught : $caught
         [
             500,
             [ "Content-Type", "text/plain; charset=utf-8" ],
@@ -76,6 +80,7 @@ sub call {
         && ($caught
             || ($self->force && ref $res eq 'ARRAY' && $res->[0] == 500)))
     {
+        ### calling raygun
         _call_raygun($env, $caught);
 
     }
@@ -102,14 +107,14 @@ EOF
 }
 
 #sub munge_error {
-    #my ($err, $caller) = @_;
-    #return $err if ref $err;
+#my ($err, $caller) = @_;
+#return $err if ref $err;
 
-    ## Ugly hack to remove " at ... line ..." automatically appended by perl
-    ## If there's a proper way to do this, please let me know.
-    #$err =~ s/ at \Q$caller->[1]\E line $caller->[2]\.\n$//;
+## Ugly hack to remove " at ... line ..." automatically appended by perl
+## If there's a proper way to do this, please let me know.
+#$err =~ s/ at \Q$caller->[1]\E line $caller->[2]\.\n$//;
 
-    #return $err;
+#return $err;
 #}
 
 sub utf8_safe {
@@ -137,7 +142,7 @@ do a little more research.
 =cut
 
 sub _call_raygun {
-    my ( $env, $error ) = @_;
+    my ($env, $error) = @_;
     my $messenger = WebService::Raygun::Messenger->new(
         message => {
             response_status_code => 500,
@@ -149,8 +154,8 @@ sub _call_raygun {
             }
         },
     );
-    $messenger->fire_raygun;
+    my $response = $messenger->fire_raygun;
+    ### raygun response : $response
 }
-
 
 1;
