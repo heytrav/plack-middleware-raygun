@@ -1,0 +1,89 @@
+package TestPlack;
+
+use strict;
+use warnings;
+use parent qw(Test::Class);
+
+use Test::More;
+use Test::Deep;    # (); # uncomment to stop prototype errors
+use Test::Exception;
+use Test::MockModule;
+
+use Plack::Test;
+use HTTP::Request;
+
+#use Smart::Comments;
+
+sub t0005_use_middleware : Test(1) {
+    my $self = shift;
+    use_ok('Plack::Middleware::Raygun')
+        or $self->FAIL_ALL('Could not load middleware');
+
+}
+
+sub t0010_response_ok : Test(2) {
+    my $self = shift;
+
+    my $app = sub {
+        return [ 200, [ 'Content-Type', 'text/plain' ], ['Hello'] ];
+    };
+    lives_ok {
+        $app = Plack::Middleware::Raygun->wrap($app);
+    }
+    'Wrapped middleware around app';
+
+    test_psgi $app, sub {
+        my $cb  = shift;
+        my $req = HTTP::Request->new(GET => 'http://localhost/');
+        my $res = $cb->($req);
+        is($res->code, 200);
+        }
+}
+
+sub t0020_response_error : Test(4) {
+    my $self = shift;
+
+    my $app = sub {
+        die "Some error";
+        return [ 200, [ 'Content-Type', 'text/plain' ], ['Hello'] ];
+    };
+    lives_ok {
+        $app = Plack::Middleware::Raygun->wrap($app);
+    }
+    'Wrapped middleware around app';
+
+    test_psgi $app, sub {
+
+        my $module = new Test::MockModule('WebService::Raygun::Messenger');
+        $module->mock(
+            'fire_raygun',
+            sub {
+                my $self    = shift;
+                my $message = $self->message->prepare_raygun;
+                ### message : $message
+                cmp_deeply(
+                    $message,
+                    superhashof({
+                            occurredOn => ignore(),
+                            details    => superhashof({
+                                    error => superhashof({
+                                            message => 'Some error'
+                                        }) }) }
+                    ),
+                    'Message has the same text as die above.'
+                );
+
+                pass('Called the fire_raygun method as expected.');
+            });
+
+        my $cb  = shift;
+        my $req = HTTP::Request->new(GET => 'http://localhost/');
+        my $res = $cb->($req);
+        ### response : $res
+        is($res->code, 500);
+        }
+}
+
+1;
+
+__END__
