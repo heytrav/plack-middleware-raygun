@@ -4,37 +4,58 @@ use warnings;
 package Plack::Middleware::Raygun;
 
 use parent qw(Plack::Middleware);
+=head1 NAME
 
-use Devel::StackTrace;
-use Devel::StackTrace::AsHTML;
+Plack::Middleware::Raygun - wrap around psgi application to send stuff to raygun.io.
+
+=head1 SYNOPSIS
+
+  use Plack::Middleware::Raygun;
+
+  # synopsis...
+
+=head1 DESCRIPTION
+
+# longer description...
+
+
+=head1 INTERFACE
+
+
+=cut
+
+
+#use Devel::StackTrace;
+#use Devel::StackTrace::AsHTML;
 use Try::Tiny;
 use Plack::Util::Accessor qw( force no_print_errors );
 
 use WebService::Raygun;
 
-our $StackTraceClass = "Devel::StackTrace";
+#our $StackTraceClass = "Devel::StackTrace";
 
 # Optional since it needs PadWalker
-if (
-    try {
-        require Devel::StackTrace::WithLexicals;
-        Devel::StackTrace::WithLexicals->VERSION(0.08);
-        1;
-    })
-{
-    $StackTraceClass = "Devel::StackTrace::WithLexicals";
-}
+#if (
+    #try {
+        #require Devel::StackTrace::WithLexicals;
+        #Devel::StackTrace::WithLexicals->VERSION(0.08);
+        #1;
+    #})
+#{
+    #$StackTraceClass = "Devel::StackTrace::WithLexicals";
+#}
 
 sub call {
     my ($self, $env) = @_;
 
     my $trace;
     local $SIG{__DIE__} = sub {
-        $trace = $StackTraceClass->new(
-            indent         => 1,
-            message        => munge_error($_[0], [caller]),
-            ignore_package => __PACKAGE__,
-        );
+        $trace = 1;
+        #$StackTraceClass->new(
+            #indent         => 1,
+            #message        => munge_error($_[0], [caller]),
+            #ignore_package => __PACKAGE__,
+        #);
         die @_;
     };
 
@@ -55,29 +76,14 @@ sub call {
         && ($caught
             || ($self->force && ref $res eq 'ARRAY' && $res->[0] == 500)))
     {
-        my $text = $trace->as_string;
-        my $html = $trace->as_html;
-        $env->{'plack.stacktrace.text'} = $text;
-        $env->{'plack.stacktrace.html'} = $html;
-        $env->{'psgi.errors'}->print($text) unless $self->no_print_errors;
-        if (($env->{HTTP_ACCEPT} || '*/*') =~ /html/) {
-            $res = [
-                500,
-                [ 'Content-Type' => 'text/html; charset=utf-8' ],
-                [ utf8_safe($html) ] ];
-        }
-        else {
-            $res = [
-                500,
-                [ 'Content-Type' => 'text/plain; charset=utf-8' ],
-                [ utf8_safe($text) ] ];
-        }
+        _call_raygun($env, $caught);
+
     }
 
     # break $trace here since $SIG{__DIE__} holds the ref to it, and
     # $trace has refs to Standalone.pm's args ($conn etc.) and
     # prevents garbage collection to be happening.
-    undef $trace;
+    #undef $trace;
 
     return $res;
 }
@@ -95,16 +101,16 @@ and the StackTrace middleware couldn't catch its stack trace, possibly because y
 EOF
 }
 
-sub munge_error {
-    my ($err, $caller) = @_;
-    return $err if ref $err;
+#sub munge_error {
+    #my ($err, $caller) = @_;
+    #return $err if ref $err;
 
-    # Ugly hack to remove " at ... line ..." automatically appended by perl
-    # If there's a proper way to do this, please let me know.
-    $err =~ s/ at \Q$caller->[1]\E line $caller->[2]\.\n$//;
+    ## Ugly hack to remove " at ... line ..." automatically appended by perl
+    ## If there's a proper way to do this, please let me know.
+    #$err =~ s/ at \Q$caller->[1]\E line $caller->[2]\.\n$//;
 
-    return $err;
-}
+    #return $err;
+#}
 
 sub utf8_safe {
     my $str = shift;
@@ -122,6 +128,29 @@ sub utf8_safe {
     $str;
 }
 
-1;
+=head2 _call_raygun
+
+Call the raygun.io using L<WebService::Raygun|WebService::Raygun>.  ATM I'm
+not sure what attributes are available in the C<$env> variable so I'll need to
+do a little more research.
+
+=cut
+
+sub _call_raygun {
+    my ( $env, $error ) = @_;
+    my $messenger = WebService::Raygun::Messenger->new(
+        message => {
+            response_status_code => 500,
+            error                => $error,
+            request              => {
+                http_method  => $env->{REQUEST_METHOD},
+                query_string => $env->{QUERY_STRING},
+
+            }
+        },
+    );
+    $messenger->fire_raygun;
+}
+
 
 1;
