@@ -8,8 +8,8 @@ use Test::More;
 use Test::Deep;    # (); # uncomment to stop prototype errors
 use Test::Exception;
 use Test::MockModule;
-
 use Plack::Test;
+
 use HTTP::Request;
 
 #use Smart::Comments;
@@ -18,7 +18,6 @@ sub t0005_use_middleware : Test(1) {
     my $self = shift;
     use_ok('Plack::Middleware::Raygun')
         or $self->FAIL_ALL('Could not load middleware');
-
 }
 
 sub t0010_response_ok : Test(2) {
@@ -54,7 +53,7 @@ sub t0020_response_error : Test(4) {
 
     test_psgi $app, sub {
 
-        my $module = new Test::MockModule('WebService::Raygun::Messenger');
+        my $module = Test::MockModule->new('WebService::Raygun::Messenger');
         $module->mock(
             'fire_raygun',
             sub {
@@ -81,8 +80,47 @@ sub t0020_response_error : Test(4) {
         my $res = $cb->($req);
         ### response : $res
         is($res->code, 500);
+        $module->unmock_all();
         }
 }
+
+sub t0030_argument_in_builder : Test(3) {
+    my $self = shift;
+    my $app  = sub {
+        die "Some error";
+        return [ 200, [ 'Content-type', 'text/html' ], ['Hello'] ];
+    };
+
+    lives_ok {
+        $app = Plack::Middleware::Raygun->wrap($app, api_key => 'whatever');
+    }
+    'Wrapped middleware around app';
+
+    test_psgi $app, sub {
+        my $module = Test::MockModule->new('WebService::Raygun::Messenger');
+        $module->mock(
+            'fire_raygun',
+            sub {
+                my $self    = shift;
+                my $api_key = $self->api_key;
+                ### called sub : $api_key
+                if ( $api_key and $api_key eq 'whatever' ) {
+                    pass('Found api key');
+                }
+                else {
+                    fail('API key not passed through!');
+                }
+            }
+        );
+        my $cb  = shift;
+        my $req = HTTP::Request->new(GET => 'http://localhost/');
+        my $res = $cb->($req);
+        ### response : $res
+        is($res->code, 500);
+        $module->unmock_all();
+      }
+}
+
 
 1;
 

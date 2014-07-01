@@ -33,7 +33,7 @@ Send error/crash data to the raygun.io api.
 =cut
 
 use Try::Tiny;
-use Plack::Util::Accessor qw( force no_print_errors );
+use Plack::Util::Accessor qw( force no_print_errors api_key );
 
 use WebService::Raygun::Messenger;
 
@@ -74,7 +74,7 @@ sub call {
             || ($self->force && ref $res eq 'ARRAY' && $res->[0] == 500)))
     {
         ### calling raygun
-        _call_raygun($env, $caught);
+        $self->_call_raygun($env, $caught);
 
     }
 
@@ -123,13 +123,15 @@ Call the raygun.io using L<WebService::Raygun|WebService::Raygun>.
 
 # Need to find out what attributes are available in the $env hash variable.
 sub _call_raygun {
-    my ($env, $error) = @_;
+    my ($self, $env, $error) = @_;
     my $scheme      = $env->{'psgi.url_scheme'};
     my $http_host   = $env->{HTTP_HOST};
     my $request_uri = $env->{REQUEST_URI};
     my $url         = $scheme . '://' . $http_host . $request_uri;
-    ### about to init raygun
-    my $messenger   = WebService::Raygun::Messenger->new(
+    my $api_key = $self->api_key // '';
+    ### about to init raygun with api key : $api_key
+    my $messenger = WebService::Raygun::Messenger->new(
+        api_key => $api_key,
         message => {
             response_status_code => 500,
             error                => $error,
