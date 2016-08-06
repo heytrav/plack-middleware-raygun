@@ -66,7 +66,7 @@ sub t0020_response_error : Test(4) {
                             occurredOn => ignore(),
                             details    => superhashof({
                                     error => superhashof({
-                                            message => 'Some error'
+                                            message => re(qr{Some\serror})
                                         }) }) }
                     ),
                     'Message has the same text as die above.'
